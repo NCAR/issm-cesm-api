@@ -1,8 +1,8 @@
 Goal: 
-   ISSM lib must have three routines that can be called by the CESM infrastructure code,
-   those three routines must behave as if they where the Fortran routines described below.
+   ISSM lib must have three routines that can be called by the CESM infrastructure code;
+   those three routines must behave as if they were the Fortran routines described below.
 
-We may need to interate on these API's, but any changes would probably be relatively minor.
+We may need to iterate on these API's, but any changes would probably be relatively minor.
 
 !================================================================================
 subroutine issm_init( MPI_COMM_GLC, logFile, restartFile,  
@@ -12,12 +12,12 @@ subroutine issm_init( MPI_COMM_GLC, logFile, restartFile,
 Purpose: initialization, exchange time-invariant data, send IC state from the model.
 
    type(integer*32)          ,intent(in)    :: MPI_COMM_GLC ! time-invariant, mpi communicator group for glc component
-   type(character(*)),       ,intent(in)    :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes)
+   type(character(*)),       ,intent(in)    :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes, but logFile is valid for all tasks)
    type(character(*)),       ,intent(in)    :: restartFile  ! full path & name of restart file to read
    type(integer*32)  ,pointer,intent(inout) :: index(:)     ! time-invariant, global index of local data (1-based) 
    type(real*64)     ,pointer,intent(inout) :: lat(:)       ! time-invariant, latitude of grid cell (degrees north)
-   type(real*64)     ,pointer,intent(inout) :: lon(:)       ! time-invariant, latitude of grid cell (degrees east)
-   type(real*64)     ,pointer,intent(inout) :: area(:)      ! time-invariant, latitude of grid cell (radians**2)
+   type(real*64)     ,pointer,intent(inout) :: lon(:)       ! time-invariant, longitude of grid cell (degrees east)
+   type(real*64)     ,pointer,intent(inout) :: area(:)      ! time-invariant, area of grid cell (radians**2)
    type(integer*32)  ,pointer,intent(inout) :: mask(:)      ! time-invariant, non-zero <=> frac can be non-zero in this cell
    type(integer*32)          ,intent(out)   :: dt           ! time-invariant, delta-t when issm_run() is called (seconds)
    type(integer*32)          ,intent(out)   :: year         ! year corresponding to frac & h data  (range [0,9999])
