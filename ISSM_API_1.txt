@@ -1,0 +1,80 @@
+Goal: 
+   ISSM lib must have three routines that can be called by the CESM infrastructure code,
+   those three routines must behave as if they where the Fortran routines described below.
+
+We may need to interate on these API's, but any changes would probably be relatively minor.
+
+!================================================================================
+subroutine issm_init( MPI_COMM_GLC, logFile, restartFile,  
+   index, lat, lon, area, mask, dt, 
+   year, month, day, sec, h, frac, rCode)
+
+Purpose: initialization, exchange time-invariant data, send IC state from the model.
+
+   type(integer*32)          ,intent(in)    :: MPI_COMM_GLC ! time-invariant, mpi communicator group for glc component
+   type(character(*)),       ,intent(in)    :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes)
+   type(character(*)),       ,intent(in)    :: restartFile  ! full path & name of restart file to read
+   type(integer*32)  ,pointer,intent(inout) :: index(:)     ! time-invariant, global index of local data (1-based) 
+   type(real*64)     ,pointer,intent(inout) :: lat(:)       ! time-invariant, latitude of grid cell (degrees north)
+   type(real*64)     ,pointer,intent(inout) :: lon(:)       ! time-invariant, latitude of grid cell (degrees east)
+   type(real*64)     ,pointer,intent(inout) :: area(:)      ! time-invariant, latitude of grid cell (radians**2)
+   type(integer*32)  ,pointer,intent(inout) :: mask(:)      ! time-invariant, non-zero <=> frac can be non-zero in this cell
+   type(integer*32)          ,intent(out)   :: dt           ! time-invariant, delta-t when issm_run() is called (seconds)
+   type(integer*32)          ,intent(out)   :: year         ! year corresponding to frac & h data  (range [0,9999])
+   type(integer*32)          ,intent(out)   :: month        ! month  of year  for data (range [1,12])
+   type(integer*32)          ,intent(out)   :: day          ! day of month   for data (range [1,31])
+   type(integer*32)          ,intent(out)   :: sec          ! elapsed secs in day for (range [0,86399])
+   type(real*64)     ,pointer,intent(inout) :: h   (:)      ! height of glacier (m) 
+   type(real*64)     ,pointer,intent(inout) :: frac(:)      ! fraction of cell for which h data applies (0 or 1)
+   type(integer*32)          ,intent(out)   :: rCode        ! return code, 0 => no-error
+
+Notes 
+(a) ISSM should not use MPI_COMM_WORLD, it should use MPI_COMM_GLC instead
+(b) (ideally) CESM components write text/logging output the logFile, which the CESM system will subsequently archive
+(c) about pointer data: 
+    intent is in/out because input is an unallocated pointer , on output it is a pointer to allocated data
+    ISSM must allocate memory for these when issm_init() is called
+    We could change the API so that the CESM calling routine allocates the memory if we add a 2nd issm_init2() routine
+    The size of these arrays equals the number of grid cells running on that MPI task
+(d) the index data must correspond to the grid/domain data used to compute the mapping matrices
+(e) about mask, frac, & h: 
+   (*) for ISSM we're assuming frac = 0 or 1, ie. ISSM doesn't do partial cells (some components, eg. sea ice, can have partial cells)
+   (*) frac(n) = 1 and h(n) = 0  means ISSM is running in this cell and has determined there is no glacier there
+   (*) frac(n) = 1 and h(n) > 0  means ISSM is running in this cell and has determined there is glacier there
+   (*) frac(n) = 0               means ISSM is not running in this cell and has no meaningful h field associated with it
+   (*) mask(n) = 0               means frac(n) will never be non-zero in this cell
+   (*) mask(n) /= 0              means frac(n) might be non-zero in this cell
+
+
+!================================================================================
+subroutine issm_run( year, month, day, sec, rFlag, rFile, tSrf, Q, h, frac, rCode)
+
+Purpose: call on issm to advance one dt time-step
+
+   type(integer*32)          ,intent(inout) :: year     ! year corresponding to frac & h data  (range [0,9999])
+   type(integer*32)          ,intent(inout) :: month    ! month  of year  for data (range [1,12])
+   type(integer*32)          ,intent(inout) :: day      ! day of month   for data (range [1,31])
+   type(integer*32)          ,intent(inout) :: sec      ! elapsed secs in day for (range [0,86399])
+   type(integer*32)          ,intent(in)    :: rFlag    ! if non-zero, create restart file corresponding to output date
+   type(character(*)),       ,intent(in)    :: rFile    ! name for restart file
+   type(real*64)     ,pointer,intent(in)    :: tSrf(:)  ! surface temperature (K)
+   type(real*64)     ,pointer,intent(in)    :: Q   (:)  ! surface mass flux (kg/m^2/s)
+   type(real*64)     ,pointer,intent(out)   :: h   (:)  ! height of glacier (m) 
+   type(real*64)     ,pointer,intent(out)   :: frac(:)  ! fraction of cell for which h data applies (0 or 1)
+   type(integer*32)          ,intent(out)   :: rCode    ! return code, 0 => no-error
+
+Notes 
+(a) on input  year,month,day,sec is the time associated with input data (tSrf & Q)
+    on output year,month,day,sec is the time associated with output data (h & frac)
+(b) iff rFlag /= 0, component must create a restart file corresponding to the date of the output data
+(c) about Q flux, the CESM sign convention is positive down, so Q is non-negative
+
+!================================================================================
+
+subroutine issm_final_mct(rCode)
+
+Purpose: tell issm that the run is over and it will not be called again
+
+   type(integer*32)          ,intent(out)   :: rCode    ! return code, 0 => no-error
+
+!================================================================================
