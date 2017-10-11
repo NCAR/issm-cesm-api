@@ -29,6 +29,7 @@ Purpose: initialization, exchange time-invariant data, send IC state from the mo
    real*64     ,pointer,intent(out) :: h   (:)      ! height of glacier relative to sea level, could be < 0 (m) 
    integer*32  ,pointer,intent(out) :: lmask(:)     ! non-zero <=> this is a land cell on glc grid
    real*64     ,pointer,intent(out) :: frac(:)      ! whether glacier is currently occupying this grid cell (0 or 1)
+   integer*32          ,intent(out) :: rCode        ! return code, 0 => no-error
 
 Notes 
 (a) ISSM should not use MPI_COMM_WORLD, it should use MPI_COMM_GLC instead
