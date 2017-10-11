@@ -52,6 +52,7 @@ Notes
     All input or output flux fields are assumed to be average fluxes that apply over one coupling interval
     A one-year coupling interval for a model that has no leap years means dt = 31,536,000.
     Currently we're assuming all years have 365 days, no leap years, maybe this assumption could be relaxed.
+    It will be easiest if we assume a 1-year coupling interval, but if that won't work for some reason, we can consider alternatives.
 
 !================================================================================
 subroutine issm_run( year, month, day, sec, rFlag, rFile, tSrf, Q, h, frac, rCode)
