@@ -13,7 +13,7 @@ Purpose: initialization, exchange time-invariant data, send IC state from the mo
 
    type(integer*32)          ,intent(in)    :: MPI_COMM_GLC ! time-invariant, mpi communicator group for glc component
    type(character(*)),       ,intent(in)    :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes, but logFile is valid for all tasks)
-   type(character(*)),       ,intent(in)    :: restartFile  ! full path & name of restart file to read
+   type(character(*)),       ,intent(in)    :: restartFile  ! full path & name of restart or initial conditions file to read
    type(integer*32)  ,pointer,intent(inout) :: index(:)     ! time-invariant, global index of local data (1-based) 
    type(real*64)     ,pointer,intent(inout) :: lat(:)       ! time-invariant, latitude of grid cell (degrees north)
    type(real*64)     ,pointer,intent(inout) :: lon(:)       ! time-invariant, longitude of grid cell (degrees east)
