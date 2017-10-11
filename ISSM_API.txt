@@ -1,34 +1,34 @@
 Version date: 171011
 
 Goal: 
-   ISSM lib must have three routines that can be called by the CESM infrastructure code,
+   ISSM lib must have three routines that can be called by the CESM infrastructure code;
    those three routines must behave as if they were the Fortran routines described below.
 
 We may need to iterate on these API's, but any changes would probably be relatively minor.
 
 !================================================================================
 subroutine issm_init( MPI_COMM_GLC, logFile, restartFile,  
-   index, lat, lon, area, gmask, lmask, dt, 
-   year, month, day, sec, h, frac, rCode)
+   index, lat, lon, area, gmask, dt,
+   year, month, day, sec, h, lmask, frac, rCode)
 
 Purpose: initialization, exchange time-invariant data, send IC state from the model.
 
    integer*32          ,intent(in)  :: MPI_COMM_GLC ! time-invariant, mpi communicator group for glc component
-   character(*)        ,intent(in)  :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes)
-   character(*)        ,intent(in)  :: restartFile  ! full path & name of restart file to read
+   character(*)        ,intent(in)  :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes, but logFile is valid for all tasks)
+   character(*)        ,intent(in)  :: restartFile  ! full path & name of restart or initial conditions file to read
    integer*32  ,pointer,intent(out) :: index(:)     ! time-invariant, global index of local data (1-based) 
    real*64     ,pointer,intent(out) :: lat(:)       ! time-invariant, grid cell latitude (degrees north)
    real*64     ,pointer,intent(out) :: lon(:)       ! time-invariant, grid cell longitude (degrees east)
    real*64     ,pointer,intent(out) :: area(:)      ! time-invariant, grid cell area      (radians**2)
    integer*32  ,pointer,intent(out) :: gmask(:)     ! time-invariant, non-zero <=> frac can be non-zero in this cell
-   integer*32  ,pointer,intent(out) :: lmask(:)     ! time-invariant, non-zero <=> this is a land cell on glc grid
    integer*32          ,intent(out) :: dt           ! time-invariant, coupling interval (seconds)
    integer*32          ,intent(out) :: year         ! year corresponding to frac & h data  (range [0,9999])
    integer*32          ,intent(out) :: month        ! month of year  for data (range [1,12])
    integer*32          ,intent(out) :: day          ! day of month   for data (range [1,31])
    integer*32          ,intent(out) :: sec          ! elapsed secs in day     (range [0,86399])
    real*64     ,pointer,intent(out) :: h   (:)      ! height of glacier relative to sea level, could be < 0 (m) 
-   real*64     ,pointer,intent(out) :: frac(:)      ! fraction of cell for which output data exists (0 or 1)
+   integer*32  ,pointer,intent(out) :: lmask(:)     ! non-zero <=> this is a land cell on glc grid
+   real*64     ,pointer,intent(out) :: frac(:)      ! whether glacier is currently occupying this grid cell (0 or 1)
    integer*32          ,intent(out) :: rCode        ! return code, 0 => no-error
 
 Notes 
@@ -43,8 +43,8 @@ Notes
 (d) the index data must correspond to the grid/domain data used to compute the regridding (mapping) matrices
 (e) about gmask, lmask, frac, & h: 
    (*) for now we assume frac = 0 or 1 (maybe someday ISSM, or some other model, will support partial cells)
-   (*) gmask(n) \= 0   means frac(n) could be non-zero here (ie. glacier could occupy this grid cell)
-   (*) lmask(n) \= 0   means this cell is over land according to ISSM's internal grid and land mask
+   (*) gmask(n) /= 0   means frac(n) could be non-zero here (ie. glacier could occupy this grid cell) (this may be 1 everywhere)
+   (*) lmask(n) /= 0   means this cell is over land according to ISSM's internal grid and land mask (this may be time-varying if you represent isostasy, sea level rise, etc.)
    (*) frac(n) > 0     means glacier is currently occupying this grid cell
    (*) if frac(n) > 0, then h(n) is the height above sea level of the top of the glacier, h could be positive or negative
    (*) if frac(n) = 0 and lmask(n) /= 0, then h(n) is the height of bare land in this cell, h < 0 is OK 
@@ -52,9 +52,10 @@ Notes
 (f) dt is the coupling interval, ie. the time interval between calls to issm_run(), not ISSM's internal time step.
     A one-year coupling interval for a model that has no leap years means dt = 31,536,000.
     We're assuming that, at least for the immediate future, this will be the case.
+    It will be easiest if we assume a 1-year coupling interval, but if that won't work for some reason, we can consider alternatives.
 
 !================================================================================
-subroutine issm_run( year, month, day, sec, rFlag, rFile, tSrf, Q, h, frac, rCode)
+subroutine issm_run( year, month, day, sec, rFlag, rFile, tSrf, Q, h, lmask, frac, rCode)
 
 Purpose: call on issm to advance one coupling interval (dt output from issm_init above)
 
@@ -67,7 +68,7 @@ Purpose: call on issm to advance one coupling interval (dt output from issm_init
    real*64     ,pointer,intent(in)    :: tSrf(:)  ! surface temperature (K)
    real*64     ,pointer,intent(in)    :: Q   (:)  ! surface mass flux (kg/m^2/s)
    real*64     ,pointer,intent(out)   :: h   (:)  ! height of glacier (m) 
-   real*64     ,pointer,intent(out)   :: frac(:)  ! fraction of cell for which h data applies (0 or 1)
+   integer*32  ,pointer,intent(out)   :: lmask(:) ! non-zero <=> this is a land cell on glc grid
    integer*32          ,intent(out)   :: rCode    ! return code, 0 => no-error
 
 Notes 
@@ -77,7 +78,7 @@ Notes
     Input or output state fields are normally NOT time averaged, although there might be some exceptions.
 (b) iff rFlag /= 0, component must create a restart file corresponding to the date of the output data
     and the restart file name is provided
-(c) we assume ISSM can only accept Q flux where lmask \= 0 or where frac > 0
+(c) we assume ISSM can only accept Q flux where lmask /= 0 or where frac > 0
     ie. over any land cell or over ocean cells iff glacier already exists there (eg. over an ice shelf)
 (d) about Q flux, the CESM sign convention is positive down, so Q is non-negative
 
