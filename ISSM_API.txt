@@ -1,3 +1,5 @@
+Version date: 171011
+
 Goal: 
    ISSM lib must have three routines that can be called by the CESM infrastructure code;
    those three routines must behave as if they were the Fortran routines described below.
@@ -11,47 +13,44 @@ subroutine issm_init( MPI_COMM_GLC, logFile, restartFile,
 
 Purpose: initialization, exchange time-invariant data, send IC state from the model.
 
-   type(integer*32)          ,intent(in)  :: MPI_COMM_GLC ! time-invariant, mpi communicator group for glc component
-   type(character(*)),       ,intent(in)  :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes, but logFile is valid for all tasks)
-   type(character(*)),       ,intent(in)  :: restartFile  ! full path & name of restart or initial conditions file to read
-   type(integer*32)  ,pointer,intent(out) :: index(:)     ! time-invariant, global index of local data (1-based) 
-   type(real*64)     ,pointer,intent(out) :: lat(:)       ! time-invariant, latitude of grid cell (degrees north)
-   type(real*64)     ,pointer,intent(out) :: lon(:)       ! time-invariant, longitude of grid cell (degrees east)
-   type(real*64)     ,pointer,intent(out) :: area(:)      ! time-invariant, area of grid cell (radians**2)
-   type(integer*32)  ,pointer,intent(out) :: gmask(:)     ! time-invariant, non-zero <=> frac can be non-zero in this cell
-   type(integer*32)          ,intent(out) :: dt           ! time-invariant, coupling interval (seconds)
-   type(integer*32)          ,intent(out) :: year         ! year corresponding to frac & h data  (range [0,9999])
-   type(integer*32)          ,intent(out) :: month        ! month of year  for data (range [1,12])
-   type(integer*32)          ,intent(out) :: day          ! day of month   for data (range [1,31])
-   type(integer*32)          ,intent(out) :: sec          ! elapsed secs in day     (range [0,86399])
-   type(real*64)     ,pointer,intent(out) :: h   (:)      ! height of glacier relative to sea level, could be < 0 (m) 
-   type(integer*32)  ,pointer,intent(out) :: lmask(:)     ! non-zero <=> this is a land cell on glc grid
-   type(real*64)     ,pointer,intent(out) :: frac(:)      ! whether glacier is currently occupying this grid cell (0 or 1)
-   type(integer*32)          ,intent(out) :: rCode        ! return code, 0 => no-error
+   integer*32          ,intent(in)  :: MPI_COMM_GLC ! time-invariant, mpi communicator group for glc component
+   character(*)        ,intent(in)  :: logFile      ! time-invariant, file to append stdout to (normally only task 0 writes, but logFile is valid for all tasks)
+   character(*)        ,intent(in)  :: restartFile  ! full path & name of restart or initial conditions file to read
+   integer*32  ,pointer,intent(out) :: index(:)     ! time-invariant, global index of local data (1-based) 
+   real*64     ,pointer,intent(out) :: lat(:)       ! time-invariant, grid cell latitude (degrees north)
+   real*64     ,pointer,intent(out) :: lon(:)       ! time-invariant, grid cell longitude (degrees east)
+   real*64     ,pointer,intent(out) :: area(:)      ! time-invariant, grid cell area      (radians**2)
+   integer*32  ,pointer,intent(out) :: gmask(:)     ! time-invariant, non-zero <=> frac can be non-zero in this cell
+   integer*32          ,intent(out) :: dt           ! time-invariant, coupling interval (seconds)
+   integer*32          ,intent(out) :: year         ! year corresponding to frac & h data  (range [0,9999])
+   integer*32          ,intent(out) :: month        ! month of year  for data (range [1,12])
+   integer*32          ,intent(out) :: day          ! day of month   for data (range [1,31])
+   integer*32          ,intent(out) :: sec          ! elapsed secs in day     (range [0,86399])
+   real*64     ,pointer,intent(out) :: h   (:)      ! height of glacier relative to sea level, could be < 0 (m) 
+   integer*32  ,pointer,intent(out) :: lmask(:)     ! non-zero <=> this is a land cell on glc grid
+   real*64     ,pointer,intent(out) :: frac(:)      ! whether glacier is currently occupying this grid cell (0 or 1)
 
 Notes 
 (a) ISSM should not use MPI_COMM_WORLD, it should use MPI_COMM_GLC instead
 (b) (ideally) CESM components write text/logging output the logFile, which the CESM system will subsequently archive
 (c) about pointer data: 
-    (*) intent is out because input is an unallocated pointer, on output it is a pointer to allocated data
-    (*) ISSM must allocate memory for these when issm_init() is called
-    (*) We could change the API so that the CESM calling routine allocates the memory if we add a 2nd issm_init2() routine
+    (*) ISSM must allocate memory for these pointers.  We could change the API so that
+        the CESM calling routine allocates the memory if we add a 2nd issm_init2() routine
+        If the inter-language API can handle it, we (CESM) would prefer to use Fortran allocatable arrays
+        instead of pointers as this allows for greater Fortran compiler optimization
     (*) The size of these arrays equals the number of grid cells running on that MPI task
-    (*) If the inter-language API can handle it, we (CESM) would prefer to use Fortran allocatable arrays instead of pointers
-       as this allows for greater Fortran compiler optimization
-(d) the index data must correspond to the grid/domain data used to compute the mapping matrices
+(d) the index data must correspond to the grid/domain data used to compute the regridding (mapping) matrices
 (e) about gmask, lmask, frac, & h: 
    (*) for now we assume frac = 0 or 1 (maybe someday ISSM, or some other model, will support partial cells)
    (*) gmask(n) /= 0   means frac(n) could be non-zero here (ie. glacier could occupy this grid cell) (this may be 1 everywhere)
    (*) lmask(n) /= 0   means this cell is over land according to ISSM's internal grid and land mask (this may be time-varying if you represent isostasy, sea level rise, etc.)
    (*) frac(n) > 0     means glacier is currently occupying this grid cell
    (*) if frac(n) > 0, then h(n) is the height above sea level of the top of the glacier, h could be positive or negative
-   (*) if frac(n) = 0 and lmask(n) /= 0, then h(n) is the height of bare land in this cell
+   (*) if frac(n) = 0 and lmask(n) /= 0, then h(n) is the height of bare land in this cell, h < 0 is OK 
    (*) if frac(n) = 0 and lmask(n) == 0, then h(n) is not meaningful (although a zero value makes some sense)
 (f) dt is the coupling interval, ie. the time interval between calls to issm_run(), not ISSM's internal time step.
-    All input or output flux fields are assumed to be average fluxes that apply over one coupling interval
     A one-year coupling interval for a model that has no leap years means dt = 31,536,000.
-    Currently we're assuming all years have 365 days, no leap years, maybe this assumption could be relaxed.
+    We're assuming that, at least for the immediate future, this will be the case.
     It will be easiest if we assume a 1-year coupling interval, but if that won't work for some reason, we can consider alternatives.
 
 !================================================================================
@@ -59,22 +58,23 @@ subroutine issm_run( year, month, day, sec, rFlag, rFile, tSrf, Q, h, lmask, fra
 
 Purpose: call on issm to advance one coupling interval (dt output from issm_init above)
 
-   type(integer*32)          ,intent(inout) :: year     ! year corresponding to frac & h data  (range [0,9999])
-   type(integer*32)          ,intent(inout) :: month    ! month  of year  for data (range [1,12])
-   type(integer*32)          ,intent(inout) :: day      ! day of month   for data (range [1,31])
-   type(integer*32)          ,intent(inout) :: sec      ! elapsed secs in day for (range [0,86399])
-   type(integer*32)          ,intent(in)    :: rFlag    ! if non-zero, create restart file corresponding to output date
-   type(character(*)),       ,intent(in)    :: rFile    ! name for restart file
-   type(real*64)     ,pointer,intent(in)    :: tSrf(:)  ! surface temperature (K)
-   type(real*64)     ,pointer,intent(in)    :: Q   (:)  ! surface mass flux (kg/m^2/s)
-   type(real*64)     ,pointer,intent(out)   :: h   (:)  ! height of glacier (m) 
-   type(integer*32)  ,pointer,intent(out)   :: lmask(:) ! non-zero <=> this is a land cell on glc grid
-   type(real*64)     ,pointer,intent(out)   :: frac(:)  ! fraction of cell for which h data applies (0 or 1)
-   type(integer*32)          ,intent(out)   :: rCode    ! return code, 0 => no-error
+   integer*32          ,intent(inout) :: year     ! year of data  (range [0,9999])
+   integer*32          ,intent(inout) :: month    ! month of year (range [1,12])
+   integer*32          ,intent(inout) :: day      ! day of month  (range [1,31])
+   integer*32          ,intent(inout) :: sec      ! elapsed secs in day (range [0,86399])
+   integer*32          ,intent(in)    :: rFlag    ! if non-zero, create restart file corresponding to output date
+   character(*),       ,intent(in)    :: rFile    ! name for restart file
+   real*64     ,pointer,intent(in)    :: tSrf(:)  ! surface temperature (K)
+   real*64     ,pointer,intent(in)    :: Q   (:)  ! surface mass flux (kg/m^2/s)
+   real*64     ,pointer,intent(out)   :: h   (:)  ! height of glacier (m) 
+   integer*32  ,pointer,intent(out)   :: lmask(:) ! non-zero <=> this is a land cell on glc grid
+   integer*32          ,intent(out)   :: rCode    ! return code, 0 => no-error
 
 Notes 
 (a) on input  year,month,day,sec is the time associated with input data (tSrf & Q)
     on output year,month,day,sec is the time associated with output data (h & frac)
+    All input or output flux fields are assumed to be average fluxes that apply over one coupling interval.
+    Input or output state fields are normally NOT time averaged, although there might be some exceptions.
 (b) iff rFlag /= 0, component must create a restart file corresponding to the date of the output data
     and the restart file name is provided
 (c) we assume ISSM can only accept Q flux where lmask /= 0 or where frac > 0
@@ -87,6 +87,6 @@ subroutine issm_final_mct(rCode)
 
 Purpose: tell issm that the run is over and it will not be called again
 
-   type(integer*32),intent(out) :: rCode ! return code, 0 => no-error
+   integer*32,intent(out) :: rCode ! return code, 0 => no-error
 
 !================================================================================
