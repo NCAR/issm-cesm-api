@@ -42,8 +42,8 @@ Notes
 (d) the index data must correspond to the grid/domain data used to compute the mapping matrices
 (e) about gmask, lmask, frac, & h: 
    (*) for now we assume frac = 0 or 1 (maybe someday ISSM, or some other model, will support partial cells)
-   (*) gmask(n) \= 0   means frac(n) could be non-zero here (ie. glacier could occupy this grid cell)
-   (*) lmask(n) \= 0   means this cell is over land according to ISSM's internal grid and land mask
+   (*) gmask(n) /= 0   means frac(n) could be non-zero here (ie. glacier could occupy this grid cell) (this may be 1 everywhere)
+   (*) lmask(n) /= 0   means this cell is over land according to ISSM's internal grid and land mask
    (*) frac(n) > 0     means glacier is currently occupying this grid cell
    (*) if frac(n) > 0, then h(n) is the height above sea level of the top of the glacier, h could be positive or negative
    (*) if frac(n) = 0 and lmask(n) /= 0, then h(n) is the height of bare land in this cell
@@ -76,7 +76,7 @@ Notes
     on output year,month,day,sec is the time associated with output data (h & frac)
 (b) iff rFlag /= 0, component must create a restart file corresponding to the date of the output data
     and the restart file name is provided
-(c) we assume ISSM can only accept Q flux where lmask \= 0 or where frac > 0
+(c) we assume ISSM can only accept Q flux where lmask /= 0 or where frac > 0
     ie. over any land cell or over ocean cells iff glacier already exists there (eg. over an ice shelf)
 (d) about Q flux, the CESM sign convention is positive down, so Q is non-negative
 
